@@ -338,22 +338,6 @@ def run_tests():
             plt.savefig(f"{idx_name}_exec_time.png")
             plt.close()
 
-            # Gráfico de melhoria percentual
-            improvement = [
-                ((no - wi) / no * 100) if no > 0 else 0
-                for no, wi in zip(no_times, wi_times)
-            ]
-            plt.figure(figsize=(10, 6))
-            plt.plot(x, improvement, '-o')
-            plt.xticks(x, labels, rotation=45)
-            plt.xlabel("Número de pedidos")
-            plt.ylabel("Melhoria Percentual (%)")
-            plt.title(f"{idx_name} — Melhoria Percentual")
-            plt.grid(True)
-            plt.tight_layout()
-            plt.savefig(f"{idx_name}_improvement.png")
-            plt.close()
-
         cursor.close()
         conn.close()
 

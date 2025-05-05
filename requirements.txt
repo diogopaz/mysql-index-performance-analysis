@@ -1,0 +1,4 @@
+mysql-connector-python==8.0.33
+Faker==18.4.0
+matplotlib==3.7.1
+python-dotenv==1.0.0 
