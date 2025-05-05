@@ -225,11 +225,12 @@ def measure_fulltext(conn, cursor, idx_sql, drop_sql, query_with, params_with, q
 # 6) Testes principais
 def run_tests():
     try:
-        # Escala menor para testes rápidos
+        # Escala maior para testes completos
         sizes = [
-            (1000, 5000),    # Pequeno
-            (5000, 25000),   # Médio
-            (10000, 50000),  # Grande
+            (10000, 50000),     # Pequeno
+            (20000, 100000),    # Médio
+            (50000, 250000),    # Grande
+            (100000, 500000),   # Muito Grande
         ]
         
         results = {
