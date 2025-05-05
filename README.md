@@ -1,6 +1,77 @@
 # Análise de Desempenho de Índices MySQL
 
-Este projeto demonstra e analisa o impacto do uso de diferentes tipos de índices no desempenho de consultas em um banco de dados MySQL. O estudo utiliza um cenário de e-commerce com clientes e pedidos para realizar testes práticos.
+Este projeto realiza uma análise comparativa do desempenho de diferentes tipos de índices no MySQL, medindo o tempo de execução de consultas com e sem índices.
+
+## Tipos de Índices Analisados
+
+1. **Índice UNIQUE em email**
+   - Testa busca por igualdade exata
+   - Usa um email real do banco para teste
+
+2. **Índice B-Tree em data**
+   - Testa busca por intervalo de datas
+   - Compara consultas com BETWEEN
+
+3. **Índice B-Tree em status**
+   - Testa busca por igualdade
+   - Usa status 'Entregue' como exemplo
+
+4. **Índice B-Tree em valor total**
+   - Testa busca por comparação numérica
+   - Usa valores maiores que 500
+
+5. **Índice FULLTEXT em descrição**
+   - Testa busca por texto
+   - Compara MATCH AGAINST vs LIKE
+
+## Configuração
+
+1. Instale as dependências:
+```bash
+pip install -r requirements.txt
+```
+
+2. Configure as variáveis de ambiente:
+```bash
+DB_HOST=localhost
+DB_USER=root
+DB_PASSWORD=root
+DB_NAME=indice_teste
+N_RUNS=5
+```
+
+## Execução
+
+Execute o script principal:
+```bash
+python bda.py
+```
+
+## Resultados
+
+O script gera dois tipos de gráficos para cada índice:
+
+1. **Gráfico de Tempo de Execução**
+   - Compara tempo com e sem índice
+   - Mostra a evolução com diferentes volumes de dados
+
+2. **Gráfico de Melhoria Percentual**
+   - Mostra o ganho percentual de performance
+   - Calcula a diferença relativa entre tempos
+
+## Escala de Testes
+
+Os testes são realizados com três volumes de dados:
+- Pequeno: 1.000 clientes e 5.000 pedidos
+- Médio: 5.000 clientes e 25.000 pedidos
+- Grande: 10.000 clientes e 50.000 pedidos
+
+## Observações
+
+- Cada teste é executado 5 vezes (configurável via N_RUNS)
+- A primeira execução é descartada (warm-up)
+- Os resultados são salvos em arquivos PNG separados
+- O banco é recriado a cada execução
 
 ## 🎯 Objetivo
 
