@@ -354,7 +354,9 @@ def run_tests():
             'idx_ord_date': [],
             'idx_ord_status': [],
             'idx_ord_total': [],
-            'idx_ord_desc': []
+            'idx_ord_desc': [],
+            'idx_composto': [],
+            'idx_hash': []
         }
 
         create_database()
@@ -437,6 +439,142 @@ def run_tests():
             )
             if ni is not None and wi is not None:
                 results['idx_ord_desc'].append((ni, wi))
+                
+            # ÍNDICE COMPOSTO orders (status, order_date)
+            try:
+                # Removemos qualquer índice anterior primeiro para evitar erros
+                try:
+                    cursor.execute("DROP INDEX idx_composto ON orders")
+                    conn.commit()
+                except mysql.connector.Error:
+                    pass  # Ignora erros se o índice não existir
+                
+                # Consulta sem índice composto
+                cursor.execute("SELECT * FROM orders WHERE status = 'Entregue' AND order_date BETWEEN '2023-01-01' AND '2023-12-31' LIMIT 1")
+                cursor.fetchall()  # Warm-up
+                
+                no_idx_times = []
+                for _ in range(N_RUNS):
+                    t0 = time.time()
+                    cursor.execute("SELECT * FROM orders WHERE status = 'Entregue' AND order_date BETWEEN '2023-01-01' AND '2023-12-31'")
+                    cursor.fetchall()
+                    no_idx_times.append(time.time() - t0)
+                no_idx_avg = sum(no_idx_times[1:]) / (N_RUNS - 1)
+                
+                # Salva plano explain sem índice
+                explain_no_idx = get_explain_plan(cursor, "SELECT * FROM orders WHERE status = 'Entregue' AND order_date BETWEEN '2023-01-01' AND '2023-12-31'")
+                save_explain_plan(explain_no_idx, f'idx_composto_{size_label}_no_idx.csv')
+                
+                # Cria índice composto
+                cursor.execute("CREATE INDEX idx_composto ON orders(status, order_date)")
+                conn.commit()
+                
+                # Consulta com índice composto
+                cursor.execute("SELECT * FROM orders WHERE status = 'Entregue' AND order_date BETWEEN '2023-01-01' AND '2023-12-31' LIMIT 1")
+                cursor.fetchall()  # Warm-up
+                
+                with_idx_times = []
+                for _ in range(N_RUNS):
+                    t0 = time.time()
+                    cursor.execute("SELECT * FROM orders WHERE status = 'Entregue' AND order_date BETWEEN '2023-01-01' AND '2023-12-31'")
+                    cursor.fetchall()
+                    with_idx_times.append(time.time() - t0)
+                with_idx_avg = sum(with_idx_times[1:]) / (N_RUNS - 1)
+                
+                # Salva plano explain com índice
+                explain_with_idx = get_explain_plan(cursor, "SELECT * FROM orders WHERE status = 'Entregue' AND order_date BETWEEN '2023-01-01' AND '2023-12-31'")
+                save_explain_plan(explain_with_idx, f'idx_composto_{size_label}_with_idx.csv')
+                
+                # Salva resultados
+                filename = os.path.join(TIMES_DIR, f'times_idx_composto.csv')
+                file_exists = os.path.isfile(filename)
+                with open(filename, 'a', newline='', encoding='utf-8') as csvfile:
+                    writer = csv.writer(csvfile)
+                    if not file_exists:
+                        writer.writerow(['Volume', 'Sem Índice (s)', 'Com Índice (s)', 'Melhoria (%)'])
+                    improvement = ((no_idx_avg - with_idx_avg) / no_idx_avg * 100) if no_idx_avg else 0
+                    writer.writerow([size_label, round(no_idx_avg, 4), round(with_idx_avg, 4), round(improvement, 2)])
+                
+                results['idx_composto'].append((no_idx_avg, with_idx_avg))
+                
+                # Remove índice para próxima iteração
+                cursor.execute("DROP INDEX idx_composto ON orders")
+                conn.commit()
+                
+            except mysql.connector.Error as err:
+                print(f"Erro ao testar índice composto: {err}")
+                
+            # ÍNDICE HASH (simulado via MEMORY ENGINE)
+            try:
+                # Remove tabela se existir
+                cursor.execute("DROP TABLE IF EXISTS orders_memory")
+                conn.commit()
+                
+                # Cria tabela com engine MEMORY
+                cursor.execute("""
+                CREATE TABLE orders_memory (
+                    id INT,
+                    customer_id INT,
+                    total DECIMAL(10,2),
+                    status VARCHAR(20),
+                    PRIMARY KEY USING HASH (id)
+                ) ENGINE=MEMORY
+                """)
+                conn.commit()
+                
+                # Insere dados de amostra
+                cursor.execute("INSERT INTO orders_memory SELECT id, customer_id, total, status FROM orders LIMIT 1000")
+                conn.commit()
+                
+                # Teste sem usar índice hash (consulta por coluna não indexada)
+                cursor.execute("SELECT * FROM orders_memory WHERE total > 500 LIMIT 1")
+                cursor.fetchall()  # Warm-up
+                
+                no_idx_times = []
+                for _ in range(N_RUNS):
+                    t0 = time.time()
+                    cursor.execute("SELECT * FROM orders_memory WHERE total > 500")
+                    cursor.fetchall()
+                    no_idx_times.append(time.time() - t0)
+                no_idx_avg = sum(no_idx_times[1:]) / (N_RUNS - 1)
+                
+                # Teste usando índice hash (consulta pela chave primária)
+                cursor.execute("SELECT * FROM orders_memory WHERE id = 100 LIMIT 1")
+                cursor.fetchall()  # Warm-up
+                
+                with_idx_times = []
+                for _ in range(N_RUNS):
+                    t0 = time.time()
+                    cursor.execute("SELECT * FROM orders_memory WHERE id = 100")
+                    cursor.fetchall()
+                    with_idx_times.append(time.time() - t0)
+                with_idx_avg = sum(with_idx_times[1:]) / (N_RUNS - 1)
+                
+                # Salva planos explain
+                explain_no_idx = get_explain_plan(cursor, "SELECT * FROM orders_memory WHERE total > 500")
+                save_explain_plan(explain_no_idx, f'idx_hash_{size_label}_no_idx.csv')
+                
+                explain_with_idx = get_explain_plan(cursor, "SELECT * FROM orders_memory WHERE id = 100")
+                save_explain_plan(explain_with_idx, f'idx_hash_{size_label}_with_idx.csv')
+                
+                # Salvando tempos em CSV
+                filename = os.path.join(TIMES_DIR, f'times_idx_hash.csv')
+                file_exists = os.path.isfile(filename)
+                with open(filename, 'a', newline='', encoding='utf-8') as csvfile:
+                    writer = csv.writer(csvfile)
+                    if not file_exists:
+                        writer.writerow(['Volume', 'Sem Índice (s)', 'Com Índice (s)', 'Melhoria (%)'])
+                    improvement = ((no_idx_avg - with_idx_avg) / no_idx_avg * 100) if no_idx_avg else 0
+                    writer.writerow([size_label, round(no_idx_avg, 4), round(with_idx_avg, 4), round(improvement, 2)])
+                
+                results['idx_hash'].append((no_idx_avg, with_idx_avg))
+                
+                # Limpeza
+                cursor.execute("DROP TABLE IF EXISTS orders_memory")
+                conn.commit()
+                
+            except mysql.connector.Error as err:
+                print(f"Erro ao testar índice HASH: {err}")
 
         # Gera gráficos para cada índice
         for idx_name, times in results.items():
