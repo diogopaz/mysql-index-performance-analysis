@@ -33,7 +33,7 @@ CREATE INDEX idx_nome ON clientes(nome);
 - Melhoram consultas que usam as colunas em conjunto na cláusula WHERE, ORDER BY, etc.
 - A ordem das colunas importa na utilização do índice.
 
-📌 Exemplo:
+#### Exemplo:
 ```sql
 CREATE INDEX idx_cliente_data ON pedidos(cliente_id, data_pedido);
 ```
@@ -47,7 +47,7 @@ WHERE cliente_id = 5 AND data_pedido >= '2024-01-01';
 - Garantem que os valores em uma ou mais colunas não se repitam.
 - Também aceleram buscas, além de impor restrições de integridade.
 
-📌 Exemplo:
+#### Exemplo:
 ```sql
 CREATE UNIQUE INDEX idx_email ON usuarios(email);
 ```
@@ -57,7 +57,7 @@ Garante que nenhum outro usuário possa ser cadastrado com o mesmo e-mail.
 - Usados principalmente com a engine MEMORY.
 - Muito eficientes para buscas por igualdade (=), mas não suportam ordenações ou buscas por intervalo.
 
-📌 Exemplo:
+#### Exemplo:
 ```sql
 CREATE TABLE cache (
   chave VARCHAR(100),
@@ -72,7 +72,7 @@ CREATE TABLE cache (
 - Permite buscas por palavras-chave, frases e operadores booleanos, acelerando consultas que utilizam busca textual.
 - Ideal para sistemas de busca, blogs e portais de conteúdo.
 
-📌 Exemplo:
+#### Exemplo:
 ```sql
 CREATE FULLTEXT INDEX idx_texto ON artigos(conteudo);
 ```
