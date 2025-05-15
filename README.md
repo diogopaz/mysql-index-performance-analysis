@@ -18,7 +18,6 @@ Abaixo estão os principais tipos de índices que o MySQL suporta, com exemplos 
 
 ### Índices B-TREE (Padrão)
 
-- Tipo de índice padrão para as engines **InnoDB** e **MyISAM**.
 - Estrutura baseada em **árvore balanceada**.
 - Otimizam buscas por igualdade e intervalo.
 - Muito úteis com `WHERE`, `ORDER BY`, `LIKE 'abc%'`, `BETWEEN`, etc.
