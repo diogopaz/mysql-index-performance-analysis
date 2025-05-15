@@ -5,19 +5,19 @@ import time
 import matplotlib.pyplot as plt
 import os
 from dotenv import load_dotenv
+import csv
 
 # Carrega variáveis de ambiente
 load_dotenv()
 
-# Configurações
 DB_HOST = os.getenv('DB_HOST', 'localhost')
 DB_USER = os.getenv('DB_USER', 'root')
 DB_PASSWORD = os.getenv('DB_PASSWORD', 'root')
 DB_NAME = os.getenv('DB_NAME', 'indice_teste')
 N_RUNS = int(os.getenv('N_RUNS', 5))  # Número de execuções por teste
 
-# 1) Garante existência do BD
 def create_database():
+    """Cria o banco de dados caso não exista."""
     try:
         root_cnx = mysql.connector.connect(
             host=DB_HOST,
@@ -32,8 +32,8 @@ def create_database():
         print(f"Erro ao criar banco de dados: {err}")
         raise
 
-# 2) Conecta ao BD
 def get_connection():
+    """Retorna conexão com o banco de dados."""
     return mysql.connector.connect(
         host=DB_HOST,
         user=DB_USER,
@@ -41,8 +41,8 @@ def get_connection():
         database=DB_NAME
     )
 
-# 3) Cria schema limpo
 def reset_schema(conn, cursor):
+    """Cria esquema limpo com as tabelas customers e orders."""
     try:
         cursor.execute("DROP TABLE IF EXISTS orders")
         cursor.execute("DROP TABLE IF EXISTS customers")
@@ -71,8 +71,8 @@ def reset_schema(conn, cursor):
         print(f"Erro ao resetar schema: {err}")
         raise
 
-# 4) Popula com dados fictícios
 def populate(conn, cursor, n_customers, n_orders):
+    """Popula as tabelas com dados fictícios usando Faker."""
     try:
         cursor.execute("DELETE FROM orders")
         cursor.execute("DELETE FROM customers")
@@ -122,10 +122,41 @@ def populate(conn, cursor, n_customers, n_orders):
         print(f"Erro ao popular banco: {err}")
         raise
 
-# 5) Funções de medição
-def measure_performance(conn, cursor, create_sql, drop_sql, query_sql, params=()):
+def get_explain_plan(cursor, query, params=()):
+    """Retorna o plano EXPLAIN da query executada."""
     try:
-        # Garante que o índice foi removido
+        cursor.execute("EXPLAIN " + query, params)
+        plan = cursor.fetchall()
+        return plan, cursor.description
+    except mysql.connector.Error as err:
+        print(f"Erro ao obter plano EXPLAIN: {err}")
+        return None, None
+
+def save_explain_plan(plan_data, filename):
+    """Salva o plano EXPLAIN em arquivo CSV para análise."""
+    if plan_data is None:
+        return
+    
+    plan, description = plan_data
+    if plan is None:
+        return
+
+    with open(filename, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        # Obtém os cabeçalhos da descrição do cursor
+        if description:
+            headers = [desc[0] for desc in description]
+            writer.writerow(headers)
+        # Escreve as linhas do plano
+        writer.writerows(plan)
+
+def measure_performance(conn, cursor, create_sql, drop_sql, query_sql, params=(), test_name="", size_label=""):
+    """
+    Mede tempo de execução de consulta com e sem índice,
+    executa planos EXPLAIN e salva resultados.
+    """
+    try:
+        # Remove índice se existir
         if drop_sql:
             try:
                 cursor.execute(drop_sql)
@@ -133,99 +164,168 @@ def measure_performance(conn, cursor, create_sql, drop_sql, query_sql, params=()
             except mysql.connector.Error:
                 pass
 
-        # Sem índice: warm-up
+        # Warm-up sem índice
         cursor.execute(query_sql, params)
         cursor.fetchall()
 
-        # Medidas sem índice
-        times = []
+        no_idx_times = []
         for _ in range(N_RUNS):
             t0 = time.time()
             cursor.execute(query_sql, params)
             cursor.fetchall()
-            times.append(time.time() - t0)
-        no_idx_avg = sum(times[1:]) / (N_RUNS - 1)  # descarta primeira execução
+            no_idx_times.append(time.time() - t0)
+        no_idx_avg = sum(no_idx_times[1:]) / (N_RUNS - 1)  # descarta warm-up
+
+        # Salva plano explain sem índice
+        explain_plan_no_idx = get_explain_plan(cursor, query_sql, params)
+        save_explain_plan(explain_plan_no_idx, f'explain_{test_name}_{size_label}_no_idx.csv')
 
         # Cria índice
         if create_sql:
             cursor.execute(create_sql)
             conn.commit()
 
-        # Com índice: warm-up
+        # Warm-up com índice
         cursor.execute(query_sql, params)
         cursor.fetchall()
 
-        # Medidas com índice
-        times = []
+        with_idx_times = []
         for _ in range(N_RUNS):
             t0 = time.time()
             cursor.execute(query_sql, params)
             cursor.fetchall()
-            times.append(time.time() - t0)
-        with_idx_avg = sum(times[1:]) / (N_RUNS - 1)
+            with_idx_times.append(time.time() - t0)
+        with_idx_avg = sum(with_idx_times[1:]) / (N_RUNS - 1)
 
-        # Remove índice
+        # Salva plano explain com índice
+        explain_plan_with_idx = get_explain_plan(cursor, query_sql, params)
+        save_explain_plan(explain_plan_with_idx, f'explain_{test_name}_{size_label}_with_idx.csv')
+
+        # Remove índice para próxima rodada
         if drop_sql:
             cursor.execute(drop_sql)
             conn.commit()
+
+        # Salvando tempos em CSV (append)
+        filename = f'times_{test_name}.csv'
+        file_exists = os.path.isfile(filename)
+        with open(filename, 'a', newline='', encoding='utf-8') as csvfile:
+            writer = csv.writer(csvfile)
+            if not file_exists:
+                writer.writerow(['Volume', 'Sem Índice (s)', 'Com Índice (s)', 'Melhoria (%)'])
+            improvement = ((no_idx_avg - with_idx_avg) / no_idx_avg * 100) if no_idx_avg else 0
+            writer.writerow([size_label, round(no_idx_avg, 4), round(with_idx_avg, 4), round(improvement, 2)])
 
         return no_idx_avg, with_idx_avg
     except mysql.connector.Error as err:
         print(f"Erro ao medir performance: {err}")
         return None, None
 
-def measure_fulltext(conn, cursor, idx_sql, drop_sql, query_with, params_with, query_without, params_without):
+def measure_fulltext(conn, cursor, idx_sql, drop_sql, query_with, params_with, query_without, params_without, test_name="", size_label=""):
+    """
+    Mede desempenho específico para FULLTEXT index,
+    comparando MATCH AGAINST e LIKE, incluindo planos EXPLAIN.
+    """
     try:
-        # Garante que não há índice
+        # Remove índice
         try:
             cursor.execute(drop_sql)
             conn.commit()
         except mysql.connector.Error:
             pass
 
-        # Sem índice (LIKE): warm-up
+        # Warm-up LIKE (sem índice)
         cursor.execute(query_without, params_without)
         cursor.fetchall()
 
-        # Medidas sem índice
-        times = []
+        no_idx_times = []
         for _ in range(N_RUNS):
             t0 = time.time()
             cursor.execute(query_without, params_without)
             cursor.fetchall()
-            times.append(time.time() - t0)
-        no_idx_avg = sum(times[1:]) / (N_RUNS - 1)
+            no_idx_times.append(time.time() - t0)
+        no_idx_avg = sum(no_idx_times[1:]) / (N_RUNS - 1)
 
-        # Cria FULLTEXT
+        explain_no_idx = get_explain_plan(cursor, query_without, params_without)
+        save_explain_plan(explain_no_idx, f'explain_{test_name}_{size_label}_no_idx.csv')
+
+        # Cria FULLTEXT index
         cursor.execute(idx_sql)
         conn.commit()
 
-        # Com índice (MATCH): warm-up
+        # Warm-up MATCH AGAINST
         cursor.execute(query_with, params_with)
         cursor.fetchall()
 
-        # Medidas com índice
-        times = []
+        with_idx_times = []
         for _ in range(N_RUNS):
             t0 = time.time()
             cursor.execute(query_with, params_with)
             cursor.fetchall()
-            times.append(time.time() - t0)
-        with_idx_avg = sum(times[1:]) / (N_RUNS - 1)
+            with_idx_times.append(time.time() - t0)
+        with_idx_avg = sum(with_idx_times[1:]) / (N_RUNS - 1)
 
-        # Remove índice
+        explain_with_idx = get_explain_plan(cursor, query_with, params_with)
+        save_explain_plan(explain_with_idx, f'explain_{test_name}_{size_label}_with_idx.csv')
+
+        # Remove índice para próxima rodada
         cursor.execute(drop_sql)
         conn.commit()
+
+        # Salvando tempos em CSV (append)
+        filename = f'times_{test_name}.csv'
+        file_exists = os.path.isfile(filename)
+        with open(filename, 'a', newline='', encoding='utf-8') as csvfile:
+            writer = csv.writer(csvfile)
+            if not file_exists:
+                writer.writerow(['Volume', 'Sem Índice (s)', 'Com Índice (s)', 'Melhoria (%)'])
+            improvement = ((no_idx_avg - with_idx_avg) / no_idx_avg * 100) if no_idx_avg else 0
+            writer.writerow([size_label, round(no_idx_avg, 4), round(with_idx_avg, 4), round(improvement, 2)])
 
         return no_idx_avg, with_idx_avg
     except mysql.connector.Error as err:
         print(f"Erro ao medir FULLTEXT: {err}")
         return None, None
 
-# 6) Testes principais
+def plot_results(results, sizes, test_name):
+    """
+    Gera gráficos de comparação de tempos e melhoria percentual,
+    salva arquivos PNG.
+    """
+    x = list(range(len(sizes)))
+    labels = [f"{no:,} pedidos" for _, no in sizes]
+
+    no_times, wi_times = zip(*results)
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(x, no_times, '--o', label='Sem índice')
+    plt.plot(x, wi_times, '-o', label='Com índice')
+    plt.xticks(x, labels, rotation=45)
+    plt.xlabel("Número de pedidos")
+    plt.ylabel("Tempo de Execução (s)")
+    plt.title(f"{test_name} — Execução sem vs com índice")
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(f"{test_name}_exec_time.png")
+    plt.close()
+
+    # Gráfico de melhoria percentual
+    improvements = [((no - wi) / no * 100) if no else 0 for no, wi in results]
+    plt.figure(figsize=(10, 6))
+    plt.plot(x, improvements, '-o', color='green')
+    plt.xticks(x, labels, rotation=45)
+    plt.xlabel("Número de pedidos")
+    plt.ylabel("Melhoria Percentual (%)")
+    plt.title(f"{test_name} — Melhoria percentual com índice")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(f"{test_name}_improvement.png")
+    plt.close()
+
 def run_tests():
+    """Executa sequência completa de testes para todos os índices e volumes."""
     try:
-        # Escala maior para testes completos
         sizes = [
             (10000, 50000),     # Pequeno
             (20000, 100000),    # Médio
@@ -241,67 +341,73 @@ def run_tests():
             'idx_ord_desc': []
         }
 
-        # Cria banco e conecta
         create_database()
         conn = get_connection()
         cursor = conn.cursor()
 
-        # Reseta schema
         reset_schema(conn, cursor)
 
         for nc, no in sizes:
+            size_label = f"{no}"
             print(f"\nTestando com {nc} clientes e {no} pedidos...")
             populate(conn, cursor, nc, no)
 
-            # Seleciona um email real para testar
             cursor.execute("SELECT email FROM customers LIMIT 1")
             sample_email = cursor.fetchone()[0]
 
-            # 1) UNIQUE em customers.email
+            # UNIQUE customers.email
             ni, wi = measure_performance(
                 conn, cursor,
                 "CREATE UNIQUE INDEX idx_cust_email ON customers(email)",
                 "DROP INDEX idx_cust_email ON customers",
                 "SELECT * FROM customers WHERE email = %s",
-                (sample_email,)
+                (sample_email,),
+                test_name='idx_cust_email',
+                size_label=size_label
             )
             if ni is not None and wi is not None:
                 results['idx_cust_email'].append((ni, wi))
 
-            # 2) B-Tree em orders.order_date
+            # B-Tree orders.order_date
             ni, wi = measure_performance(
                 conn, cursor,
                 "CREATE INDEX idx_ord_date ON orders(order_date)",
                 "DROP INDEX idx_ord_date ON orders",
                 "SELECT * FROM orders WHERE order_date BETWEEN %s AND %s",
-                ('2023-01-01', '2023-12-31')
+                ('2023-01-01', '2023-12-31'),
+                test_name='idx_ord_date',
+                size_label=size_label
             )
             if ni is not None and wi is not None:
                 results['idx_ord_date'].append((ni, wi))
 
-            # 3) B-Tree em orders.status
+            # B-Tree orders.status
             ni, wi = measure_performance(
                 conn, cursor,
                 "CREATE INDEX idx_ord_status ON orders(status)",
                 "DROP INDEX idx_ord_status ON orders",
                 "SELECT * FROM orders WHERE status = %s",
-                ('Entregue',)
+                ('Entregue',),
+                test_name='idx_ord_status',
+                size_label=size_label
             )
             if ni is not None and wi is not None:
                 results['idx_ord_status'].append((ni, wi))
 
-            # 4) B-Tree em orders.total
+            # B-Tree orders.total
             ni, wi = measure_performance(
                 conn, cursor,
                 "CREATE INDEX idx_ord_total ON orders(total)",
                 "DROP INDEX idx_ord_total ON orders",
                 "SELECT * FROM orders WHERE total > %s",
-                (500,)
+                (500,),
+                test_name='idx_ord_total',
+                size_label=size_label
             )
             if ni is not None and wi is not None:
                 results['idx_ord_total'].append((ni, wi))
 
-            # 5) FULLTEXT em orders.description
+            # FULLTEXT orders.description
             ni, wi = measure_fulltext(
                 conn, cursor,
                 "CREATE FULLTEXT INDEX idx_ord_desc ON orders(description)",
@@ -309,38 +415,22 @@ def run_tests():
                 "SELECT * FROM orders WHERE MATCH(description) AGAINST(%s IN BOOLEAN MODE)",
                 ('importante',),
                 "SELECT * FROM orders WHERE description LIKE %s",
-                ('%importante%',)
+                ('%importante%',),
+                test_name='idx_ord_desc',
+                size_label=size_label
             )
             if ni is not None and wi is not None:
                 results['idx_ord_desc'].append((ni, wi))
 
-        # 7) Gera gráficos
-        x = list(range(len(sizes)))
-        labels = [f"{no:,} pedidos" for _, no in sizes]
-
+        # Gera gráficos para cada índice
         for idx_name, times in results.items():
-            if not times:  # Pula se não houver resultados
-                continue
-
-            no_times, wi_times = zip(*times)
-
-            # Gráfico de tempo de execução
-            plt.figure(figsize=(10, 6))
-            plt.plot(x, no_times, '--o', label='Sem índice')
-            plt.plot(x, wi_times, '-o', label='Com índice')
-            plt.xticks(x, labels, rotation=45)
-            plt.xlabel("Número de pedidos")
-            plt.ylabel("Tempo de Execução (s)")
-            plt.title(f"{idx_name} — Execução sem vs com índice")
-            plt.legend()
-            plt.grid(True)
-            plt.tight_layout()
-            plt.savefig(f"{idx_name}_exec_time.png")
-            plt.close()
+            if times:
+                plot_results(times, sizes, idx_name)
 
         cursor.close()
         conn.close()
 
+        print("\nTestes concluídos com sucesso.")
     except Exception as e:
         print(f"Erro durante a execução: {e}")
         raise
