@@ -1,2 +1,0 @@
-id,select_type,table,partitions,type,possible_keys,key,key_len,ref,rows,filtered,Extra
-1,SIMPLE,orders_memory,,const,PRIMARY,PRIMARY,4,const,1,100.0,
