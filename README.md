@@ -2,6 +2,86 @@
 
 Este projeto realiza uma análise comparativa do desempenho de diferentes tipos de índices no MySQL, medindo o tempo de execução de consultas com e sem índices.
 
+# Introdução: A Importância dos Índices em Bancos de Dados (MySQL)
+
+Em sistemas de banco de dados relacionais como o **MySQL**, os **índices** são estruturas essenciais para melhorar a performance das consultas. Eles funcionam como mecanismos que permitem encontrar registros rapidamente sem precisar varrer toda a tabela, algo que se torna cada vez mais importante à medida que os dados crescem.
+
+Sem índices, consultas com filtros (`WHERE`), ordenações (`ORDER BY`) ou junções (`JOIN`) podem se tornar lentas e ineficientes, comprometendo a escalabilidade da aplicação.
+
+---
+
+## 🔍 Tipos de Índices Suportados pelo MySQL
+
+Abaixo estão os principais tipos de índices que o MySQL suporta, com exemplos e suas características:
+
+---
+
+### Índices B-TREE (Padrão)
+
+- Tipo de índice padrão para as engines **InnoDB** e **MyISAM**.
+- Estrutura baseada em **árvore balanceada**.
+- Otimizam buscas por igualdade e intervalo.
+- Muito úteis com `WHERE`, `ORDER BY`, `LIKE 'abc%'`, `BETWEEN`, etc.
+
+#### Exemplo:
+```sql
+CREATE INDEX idx_nome ON clientes(nome);
+```
+
+### Índices Compostos
+- Envolvem duas ou mais colunas.
+- Melhoram consultas que usam as colunas em conjunto na cláusula WHERE, ORDER BY, etc.
+- A ordem das colunas importa na utilização do índice.
+
+📌 Exemplo:
+```sql
+CREATE INDEX idx_cliente_data ON pedidos(cliente_id, data_pedido);
+```
+Este índice melhora consultas como:
+```sql
+SELECT * FROM pedidos
+WHERE cliente_id = 5 AND data_pedido >= '2024-01-01';
+```
+
+### Índices Únicos
+- Garantem que os valores em uma ou mais colunas não se repitam.
+- Também aceleram buscas, além de impor restrições de integridade.
+
+📌 Exemplo:
+```sql
+CREATE UNIQUE INDEX idx_email ON usuarios(email);
+```
+Garante que nenhum outro usuário possa ser cadastrado com o mesmo e-mail.
+
+### Índices HASH
+- Usados principalmente com a engine MEMORY.
+- Muito eficientes para buscas por igualdade (=), mas não suportam ordenações ou buscas por intervalo.
+
+📌 Exemplo:
+```sql
+CREATE TABLE cache (
+  chave VARCHAR(100),
+  valor TEXT,
+  INDEX USING HASH (chave)
+) ENGINE=MEMORY;
+```
+###
+
+### Índices Full-Text
+- Especializado para busca eficiente em colunas de texto longo, como TEXT, VARCHAR ou CHAR.
+- Permite buscas por palavras-chave, frases e operadores booleanos, acelerando consultas que utilizam busca textual.
+- Ideal para sistemas de busca, blogs e portais de conteúdo.
+
+📌 Exemplo:
+```sql
+CREATE FULLTEXT INDEX idx_texto ON artigos(conteudo);
+```
+Consulta otimizada:
+```sql
+SELECT * FROM artigos
+WHERE MATCH(conteudo) AGAINST('palavra-chave');
+```
+
 ## 🎯 Objetivo
 
 O objetivo é estudar e comparar o desempenho dos diferentes tipos de índices disponíveis no MySQL, analisando:
