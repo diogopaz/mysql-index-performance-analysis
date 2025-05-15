@@ -1,0 +1,2 @@
+id,select_type,table,partitions,type,possible_keys,key,key_len,ref,rows,filtered,Extra
+1,SIMPLE,customers,,const,idx_cust_email,idx_cust_email,403,const,1,100.0,
