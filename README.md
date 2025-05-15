@@ -65,7 +65,6 @@ CREATE TABLE cache (
   INDEX USING HASH (chave)
 ) ENGINE=MEMORY;
 ```
-###
 
 ### Índices Full-Text
 - Especializado para busca eficiente em colunas de texto longo, como TEXT, VARCHAR ou CHAR.
@@ -104,6 +103,12 @@ Execute o script principal:
 python bda.py
 ```
 
+## Estrutura do Projeto
+
+- `graficos/`: Contém os gráficos gerados para cada tipo de índice
+- `explain_plans/`: Contém os planos de execução EXPLAIN do MySQL
+- `tempos/`: Contém os arquivos CSV com os tempos de execução
+
 ## Resultados
 
 O script gera dois tipos de gráficos para cada índice:
@@ -116,18 +121,21 @@ O script gera dois tipos de gráficos para cada índice:
    - Mostra o ganho percentual de performance
    - Calcula a diferença relativa entre tempos
 
+Todos os resultados são organizados por tipo de índice, facilitando a análise.
+
 ## Escala de Testes
 
-Os testes são realizados com três volumes de dados:
-- Pequeno: 1.000 clientes e 5.000 pedidos
-- Médio: 5.000 clientes e 25.000 pedidos
-- Grande: 10.000 clientes e 50.000 pedidos
+Os testes são realizados com os seguintes volumes de dados:
+- Pequeno: 10.000 clientes e 50.000 pedidos
+- Médio: 20.000 clientes e 100.000 pedidos
+- Grande: 50.000 clientes e 250.000 pedidos
+- Muito Grande: 100.000 clientes e 500.000 pedidos
 
 ## Observações
 
 - Cada teste é executado 5 vezes (configurável via N_RUNS)
 - A primeira execução é descartada (warm-up)
-- Os resultados são salvos em arquivos PNG separados
+- Os planos de execução EXPLAIN são salvos para análise
 - O banco é recriado a cada execução
 
 ## 🎯 Objetivo
@@ -136,6 +144,7 @@ O objetivo principal é estudar e compreender o funcionamento dos diferentes tip
 - Tempo de execução das consultas com e sem índices
 - Melhoria percentual de desempenho
 - Comportamento com diferentes volumes de dados
+- Planos de execução EXPLAIN
 
 ## 🗄️ Estrutura do Banco de Dados
 
@@ -165,7 +174,7 @@ CREATE TABLE orders (
 
 ## 📊 Tipos de Índices Analisados
 
-1. **Índice UNIQUE**
+1. **Índice UNIQUE (B-Tree)**
    - Aplicado em: `customers.email`
    - Uso: Garante unicidade e acelera buscas por email
 
@@ -185,6 +194,14 @@ CREATE TABLE orders (
    - Aplicado em: `orders.description`
    - Uso: Otimiza buscas textuais
 
+6. **Índice COMPOSTO (B-Tree)**
+   - Aplicado em: `orders(status, order_date)`
+   - Uso: Otimiza consultas que filtram por status e período simultaneamente
+
+7. **Índice HASH**
+   - Aplicado em: Tabela MEMORY com chave primária usando HASH
+   - Uso: Demonstra a eficiência para operações de igualdade exata
+
 ## 📈 Volumes de Dados Testados
 
 - 10.000 clientes e 50.000 pedidos
@@ -199,16 +216,18 @@ CREATE TABLE orders (
 - MySQL Server
 - Bibliotecas Python (instale via pip):
   ```bash
-  pip install mysql-connector-python faker matplotlib
+  pip install -r requirements.txt
   ```
 
 ### Configuração
 1. Certifique-se que o MySQL está rodando
-2. Ajuste as credenciais de conexão no arquivo `bda.py`:
-   ```python
-   host='localhost'
-   user='root'
-   password='root'
+2. Crie um arquivo `.env` na raiz do projeto com as variáveis de ambiente:
+   ```
+   DB_HOST=localhost
+   DB_USER=root
+   DB_PASSWORD=root
+   DB_NAME=indice_teste
+   N_RUNS=5
    ```
 
 ### Execução
@@ -218,20 +237,23 @@ python bda.py
 
 ## 📊 Resultados
 
-O script gera cinco gráficos diferentes, um para cada tipo de índice:
-- `resultados_idx_cust_email.png`
-- `resultados_idx_ord_date.png`
-- `resultados_idx_ord_status.png`
-- `resultados_idx_ord_total.png`
-- `resultados_idx_ord_desc.png`
+Os resultados são organizados nas seguintes pastas:
 
-Cada gráfico mostra:
-1. Tempo de execução (com e sem índice)
-2. Melhoria percentual de desempenho
+1. **graficos/**
+   - Contém gráficos de tempo de execução para cada tipo de índice
+   - Contém gráficos de melhoria percentual para cada tipo de índice
+
+2. **explain_plans/**
+   - Contém os planos de execução EXPLAIN para cada consulta
+   - Organizado por tipo de índice, volume de dados e com/sem índice
+
+3. **tempos/**
+   - Contém arquivos CSV com os tempos de execução
+   - Cada arquivo mostra a comparação entre consultas com e sem índice
 
 ## 🔍 Análise dos Resultados
 
-### Índice UNIQUE (email)
+### Índice UNIQUE (B-Tree)
 - Melhora significativa em buscas exatas
 - Overhead na inserção devido à verificação de unicidade
 
@@ -251,12 +273,22 @@ Cada gráfico mostra:
 - Otimiza buscas textuais
 - Maior overhead de armazenamento
 
+### Índice COMPOSTO (status, order_date)
+- Melhoria dramática para consultas com múltiplos filtros
+- Demonstra a importância da ordem das colunas no índice
+
+### Índice HASH (id)
+- Extremamente eficiente para buscas por igualdade exata
+- Limitado a operações de igualdade (não suporta ranges)
+
 ## 📝 Conclusões
 
 1. Índices melhoram significativamente o desempenho das consultas
 2. O ganho de performance aumenta com o volume de dados
 3. Cada tipo de índice tem seu caso de uso ideal
 4. É importante balancear o uso de índices com o overhead de manutenção
+5. Índices compostos são essenciais para consultas com múltiplos filtros
+6. Índices HASH são extremamente eficientes para buscas por chave exata
 
 ## 👥 Contribuições
 

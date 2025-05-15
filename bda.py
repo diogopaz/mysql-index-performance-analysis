@@ -161,7 +161,7 @@ def save_explain_plan(plan_data, filename):
         # Escreve as linhas do plano
         writer.writerows(plan)
 
-def measure_performance(conn, cursor, create_sql, drop_sql, query_sql, params=(), test_name="", size_label=""):
+def measure_performance(conn, cursor, create_sql, drop_sql, query_sql, params=(), test_name="", size_label="", index_type="BTREE"):
     """
     Mede tempo de execução de consulta com e sem índice,
     executa planos EXPLAIN e salva resultados.
@@ -189,7 +189,7 @@ def measure_performance(conn, cursor, create_sql, drop_sql, query_sql, params=()
 
         # Salva plano explain sem índice
         explain_plan_no_idx = get_explain_plan(cursor, query_sql, params)
-        save_explain_plan(explain_plan_no_idx, f'{test_name}_{size_label}_no_idx.csv')
+        save_explain_plan(explain_plan_no_idx, f'{index_type}_{test_name}_{size_label}_no_idx.csv')
 
         # Cria índice
         if create_sql:
@@ -210,7 +210,7 @@ def measure_performance(conn, cursor, create_sql, drop_sql, query_sql, params=()
 
         # Salva plano explain com índice
         explain_plan_with_idx = get_explain_plan(cursor, query_sql, params)
-        save_explain_plan(explain_plan_with_idx, f'{test_name}_{size_label}_with_idx.csv')
+        save_explain_plan(explain_plan_with_idx, f'{index_type}_{test_name}_{size_label}_with_idx.csv')
 
         # Remove índice para próxima rodada
         if drop_sql:
@@ -218,7 +218,7 @@ def measure_performance(conn, cursor, create_sql, drop_sql, query_sql, params=()
             conn.commit()
 
         # Salvando tempos em CSV (append)
-        filename = os.path.join(TIMES_DIR, f'times_{test_name}.csv')
+        filename = os.path.join(TIMES_DIR, f'times_{index_type}_{test_name}.csv')
         file_exists = os.path.isfile(filename)
         with open(filename, 'a', newline='', encoding='utf-8') as csvfile:
             writer = csv.writer(csvfile)
@@ -258,7 +258,7 @@ def measure_fulltext(conn, cursor, idx_sql, drop_sql, query_with, params_with, q
         no_idx_avg = sum(no_idx_times[1:]) / (N_RUNS - 1)
 
         explain_no_idx = get_explain_plan(cursor, query_without, params_without)
-        save_explain_plan(explain_no_idx, f'{test_name}_{size_label}_no_idx.csv')
+        save_explain_plan(explain_no_idx, f'FULLTEXT_{test_name}_{size_label}_no_idx.csv')
 
         # Cria FULLTEXT index
         cursor.execute(idx_sql)
@@ -277,14 +277,14 @@ def measure_fulltext(conn, cursor, idx_sql, drop_sql, query_with, params_with, q
         with_idx_avg = sum(with_idx_times[1:]) / (N_RUNS - 1)
 
         explain_with_idx = get_explain_plan(cursor, query_with, params_with)
-        save_explain_plan(explain_with_idx, f'{test_name}_{size_label}_with_idx.csv')
+        save_explain_plan(explain_with_idx, f'FULLTEXT_{test_name}_{size_label}_with_idx.csv')
 
         # Remove índice para próxima rodada
         cursor.execute(drop_sql)
         conn.commit()
 
         # Salvando tempos em CSV (append)
-        filename = os.path.join(TIMES_DIR, f'times_{test_name}.csv')
+        filename = os.path.join(TIMES_DIR, f'times_FULLTEXT_{test_name}.csv')
         file_exists = os.path.isfile(filename)
         with open(filename, 'a', newline='', encoding='utf-8') as csvfile:
             writer = csv.writer(csvfile)
@@ -298,7 +298,7 @@ def measure_fulltext(conn, cursor, idx_sql, drop_sql, query_with, params_with, q
         print(f"Erro ao medir FULLTEXT: {err}")
         return None, None
 
-def plot_results(results, sizes, test_name):
+def plot_results(results, sizes, test_name, index_type=""):
     """
     Gera gráficos de comparação de tempos e melhoria percentual,
     salva arquivos PNG.
@@ -314,11 +314,11 @@ def plot_results(results, sizes, test_name):
     plt.xticks(x, labels, rotation=45)
     plt.xlabel("Número de pedidos")
     plt.ylabel("Tempo de Execução (s)")
-    plt.title(f"{test_name} — Execução sem vs com índice")
+    plt.title(f"{index_type} {test_name} — Execução sem vs com índice")
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig(os.path.join(CHARTS_DIR, f"{test_name}_exec_time.png"))
+    plt.savefig(os.path.join(CHARTS_DIR, f"{index_type}_{test_name}_exec_time.png"))
     plt.close()
 
     # Gráfico de melhoria percentual
@@ -328,10 +328,10 @@ def plot_results(results, sizes, test_name):
     plt.xticks(x, labels, rotation=45)
     plt.xlabel("Número de pedidos")
     plt.ylabel("Melhoria Percentual (%)")
-    plt.title(f"{test_name} — Melhoria percentual com índice")
+    plt.title(f"{index_type} {test_name} — Melhoria percentual com índice")
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig(os.path.join(CHARTS_DIR, f"{test_name}_improvement.png"))
+    plt.savefig(os.path.join(CHARTS_DIR, f"{index_type}_{test_name}_improvement.png"))
     plt.close()
 
 def run_tests():
@@ -359,6 +359,17 @@ def run_tests():
             'idx_hash': []
         }
 
+        # Mapeia os nomes dos índices para seus tipos
+        index_types = {
+            'idx_cust_email': 'BTREE_UNIQUE',
+            'idx_ord_date': 'BTREE',
+            'idx_ord_status': 'BTREE',
+            'idx_ord_total': 'BTREE',
+            'idx_ord_desc': 'FULLTEXT',
+            'idx_composto': 'BTREE_COMPOSTO',
+            'idx_hash': 'HASH'
+        }
+
         create_database()
         conn = get_connection()
         cursor = conn.cursor()
@@ -381,7 +392,8 @@ def run_tests():
                 "SELECT * FROM customers WHERE email = %s",
                 (sample_email,),
                 test_name='idx_cust_email',
-                size_label=size_label
+                size_label=size_label,
+                index_type='BTREE_UNIQUE'
             )
             if ni is not None and wi is not None:
                 results['idx_cust_email'].append((ni, wi))
@@ -394,7 +406,8 @@ def run_tests():
                 "SELECT * FROM orders WHERE order_date BETWEEN %s AND %s",
                 ('2023-01-01', '2023-12-31'),
                 test_name='idx_ord_date',
-                size_label=size_label
+                size_label=size_label,
+                index_type='BTREE'
             )
             if ni is not None and wi is not None:
                 results['idx_ord_date'].append((ni, wi))
@@ -407,7 +420,8 @@ def run_tests():
                 "SELECT * FROM orders WHERE status = %s",
                 ('Entregue',),
                 test_name='idx_ord_status',
-                size_label=size_label
+                size_label=size_label,
+                index_type='BTREE'
             )
             if ni is not None and wi is not None:
                 results['idx_ord_status'].append((ni, wi))
@@ -420,7 +434,8 @@ def run_tests():
                 "SELECT * FROM orders WHERE total > %s",
                 (500,),
                 test_name='idx_ord_total',
-                size_label=size_label
+                size_label=size_label,
+                index_type='BTREE'
             )
             if ni is not None and wi is not None:
                 results['idx_ord_total'].append((ni, wi))
@@ -463,7 +478,7 @@ def run_tests():
                 
                 # Salva plano explain sem índice
                 explain_no_idx = get_explain_plan(cursor, "SELECT * FROM orders WHERE status = 'Entregue' AND order_date BETWEEN '2023-01-01' AND '2023-12-31'")
-                save_explain_plan(explain_no_idx, f'idx_composto_{size_label}_no_idx.csv')
+                save_explain_plan(explain_no_idx, f'BTREE_COMPOSTO_idx_composto_{size_label}_no_idx.csv')
                 
                 # Cria índice composto
                 cursor.execute("CREATE INDEX idx_composto ON orders(status, order_date)")
@@ -483,10 +498,10 @@ def run_tests():
                 
                 # Salva plano explain com índice
                 explain_with_idx = get_explain_plan(cursor, "SELECT * FROM orders WHERE status = 'Entregue' AND order_date BETWEEN '2023-01-01' AND '2023-12-31'")
-                save_explain_plan(explain_with_idx, f'idx_composto_{size_label}_with_idx.csv')
+                save_explain_plan(explain_with_idx, f'BTREE_COMPOSTO_idx_composto_{size_label}_with_idx.csv')
                 
                 # Salva resultados
-                filename = os.path.join(TIMES_DIR, f'times_idx_composto.csv')
+                filename = os.path.join(TIMES_DIR, f'times_BTREE_COMPOSTO_idx_composto.csv')
                 file_exists = os.path.isfile(filename)
                 with open(filename, 'a', newline='', encoding='utf-8') as csvfile:
                     writer = csv.writer(csvfile)
@@ -552,13 +567,13 @@ def run_tests():
                 
                 # Salva planos explain
                 explain_no_idx = get_explain_plan(cursor, "SELECT * FROM orders_memory WHERE total > 500")
-                save_explain_plan(explain_no_idx, f'idx_hash_{size_label}_no_idx.csv')
+                save_explain_plan(explain_no_idx, f'HASH_idx_hash_{size_label}_no_idx.csv')
                 
                 explain_with_idx = get_explain_plan(cursor, "SELECT * FROM orders_memory WHERE id = 100")
-                save_explain_plan(explain_with_idx, f'idx_hash_{size_label}_with_idx.csv')
+                save_explain_plan(explain_with_idx, f'HASH_idx_hash_{size_label}_with_idx.csv')
                 
                 # Salvando tempos em CSV
-                filename = os.path.join(TIMES_DIR, f'times_idx_hash.csv')
+                filename = os.path.join(TIMES_DIR, f'times_HASH_idx_hash.csv')
                 file_exists = os.path.isfile(filename)
                 with open(filename, 'a', newline='', encoding='utf-8') as csvfile:
                     writer = csv.writer(csvfile)
@@ -579,7 +594,7 @@ def run_tests():
         # Gera gráficos para cada índice
         for idx_name, times in results.items():
             if times:
-                plot_results(times, sizes, idx_name)
+                plot_results(times, sizes, idx_name, index_types[idx_name])
 
         cursor.close()
         conn.close()
