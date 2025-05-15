@@ -338,15 +338,10 @@ def run_tests():
     """Executa sequência completa de testes para todos os índices e volumes."""
     try:
         sizes = [
-            # (10000, 50000),     # Pequeno
-            # (20000, 100000),    # Médio
-            # (50000, 250000),    # Grande
-            # (100000, 500000),   # Muito Grande
-
-            ## Escala menor para testes:
-            (1000, 5000),      # Muito Pequeno
-            (2000, 10000),     # Pequeno
-            (5000, 25000),     # Médio
+            (10000, 50000),     # Pequeno
+            (20000, 100000),    # Médio
+            (50000, 250000),    # Grande
+            (100000, 500000),   # Muito Grande
         ]
         
         results = {
