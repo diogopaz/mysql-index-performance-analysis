@@ -16,6 +16,16 @@ DB_PASSWORD = os.getenv('DB_PASSWORD', 'root')
 DB_NAME = os.getenv('DB_NAME', 'indice_teste')
 N_RUNS = int(os.getenv('N_RUNS', 5))  # Número de execuções por teste
 
+# Diretórios para resultados
+EXPLAIN_DIR = "explain_plans"
+CHARTS_DIR = "graficos"
+TIMES_DIR = "tempos"
+
+# Cria diretórios se não existirem
+os.makedirs(EXPLAIN_DIR, exist_ok=True)
+os.makedirs(CHARTS_DIR, exist_ok=True)
+os.makedirs(TIMES_DIR, exist_ok=True)
+
 def create_database():
     """Cria o banco de dados caso não exista."""
     try:
@@ -141,7 +151,8 @@ def save_explain_plan(plan_data, filename):
     if plan is None:
         return
 
-    with open(filename, 'w', newline='', encoding='utf-8') as f:
+    filepath = os.path.join(EXPLAIN_DIR, filename)
+    with open(filepath, 'w', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
         # Obtém os cabeçalhos da descrição do cursor
         if description:
@@ -178,7 +189,7 @@ def measure_performance(conn, cursor, create_sql, drop_sql, query_sql, params=()
 
         # Salva plano explain sem índice
         explain_plan_no_idx = get_explain_plan(cursor, query_sql, params)
-        save_explain_plan(explain_plan_no_idx, f'explain_{test_name}_{size_label}_no_idx.csv')
+        save_explain_plan(explain_plan_no_idx, f'{test_name}_{size_label}_no_idx.csv')
 
         # Cria índice
         if create_sql:
@@ -199,7 +210,7 @@ def measure_performance(conn, cursor, create_sql, drop_sql, query_sql, params=()
 
         # Salva plano explain com índice
         explain_plan_with_idx = get_explain_plan(cursor, query_sql, params)
-        save_explain_plan(explain_plan_with_idx, f'explain_{test_name}_{size_label}_with_idx.csv')
+        save_explain_plan(explain_plan_with_idx, f'{test_name}_{size_label}_with_idx.csv')
 
         # Remove índice para próxima rodada
         if drop_sql:
@@ -207,7 +218,7 @@ def measure_performance(conn, cursor, create_sql, drop_sql, query_sql, params=()
             conn.commit()
 
         # Salvando tempos em CSV (append)
-        filename = f'times_{test_name}.csv'
+        filename = os.path.join(TIMES_DIR, f'times_{test_name}.csv')
         file_exists = os.path.isfile(filename)
         with open(filename, 'a', newline='', encoding='utf-8') as csvfile:
             writer = csv.writer(csvfile)
@@ -247,7 +258,7 @@ def measure_fulltext(conn, cursor, idx_sql, drop_sql, query_with, params_with, q
         no_idx_avg = sum(no_idx_times[1:]) / (N_RUNS - 1)
 
         explain_no_idx = get_explain_plan(cursor, query_without, params_without)
-        save_explain_plan(explain_no_idx, f'explain_{test_name}_{size_label}_no_idx.csv')
+        save_explain_plan(explain_no_idx, f'{test_name}_{size_label}_no_idx.csv')
 
         # Cria FULLTEXT index
         cursor.execute(idx_sql)
@@ -266,14 +277,14 @@ def measure_fulltext(conn, cursor, idx_sql, drop_sql, query_with, params_with, q
         with_idx_avg = sum(with_idx_times[1:]) / (N_RUNS - 1)
 
         explain_with_idx = get_explain_plan(cursor, query_with, params_with)
-        save_explain_plan(explain_with_idx, f'explain_{test_name}_{size_label}_with_idx.csv')
+        save_explain_plan(explain_with_idx, f'{test_name}_{size_label}_with_idx.csv')
 
         # Remove índice para próxima rodada
         cursor.execute(drop_sql)
         conn.commit()
 
         # Salvando tempos em CSV (append)
-        filename = f'times_{test_name}.csv'
+        filename = os.path.join(TIMES_DIR, f'times_{test_name}.csv')
         file_exists = os.path.isfile(filename)
         with open(filename, 'a', newline='', encoding='utf-8') as csvfile:
             writer = csv.writer(csvfile)
@@ -307,7 +318,7 @@ def plot_results(results, sizes, test_name):
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig(f"{test_name}_exec_time.png")
+    plt.savefig(os.path.join(CHARTS_DIR, f"{test_name}_exec_time.png"))
     plt.close()
 
     # Gráfico de melhoria percentual
@@ -320,17 +331,22 @@ def plot_results(results, sizes, test_name):
     plt.title(f"{test_name} — Melhoria percentual com índice")
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig(f"{test_name}_improvement.png")
+    plt.savefig(os.path.join(CHARTS_DIR, f"{test_name}_improvement.png"))
     plt.close()
 
 def run_tests():
     """Executa sequência completa de testes para todos os índices e volumes."""
     try:
         sizes = [
-            (10000, 50000),     # Pequeno
-            (20000, 100000),    # Médio
-            (50000, 250000),    # Grande
-            (100000, 500000),   # Muito Grande
+            # (10000, 50000),     # Pequeno
+            # (20000, 100000),    # Médio
+            # (50000, 250000),    # Grande
+            # (100000, 500000),   # Muito Grande
+
+            ## Escala menor para testes:
+            (1000, 5000),      # Muito Pequeno
+            (2000, 10000),     # Pequeno
+            (5000, 25000),     # Médio
         ]
         
         results = {
