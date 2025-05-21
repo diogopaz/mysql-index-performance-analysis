@@ -95,30 +95,43 @@ O objetivo é estudar e comparar o desempenho dos diferentes tipos de índices d
 1. **Índice UNIQUE (B-Tree)**
    - Aplicado em: `customers.email`
    - Uso: Garante unicidade e acelera buscas por email
+   - ![image](https://github.com/user-attachments/assets/cb04f9c7-0d69-4372-8423-bd5b09abeed8)
 
 2. **Índice B-Tree em Data**
    - Aplicado em: `orders.order_date`
    - Uso: Otimiza consultas por período
+  
+   - ![image](https://github.com/user-attachments/assets/cb3f2c2a-427e-43c4-bb17-6d5d8707b655)
 
 3. **Índice B-Tree em Status**
    - Aplicado em: `orders.status`
    - Uso: Melhora filtros por status do pedido
+  
+   - ![image](https://github.com/user-attachments/assets/a0151a4a-d122-4175-aa07-870c2a1e301a)
 
 4. **Índice B-Tree em Valor**
    - Aplicado em: `orders.total`
    - Uso: Acelera consultas com ranges de valores
+  
+   - ![image](https://github.com/user-attachments/assets/19e23c27-da14-408c-a08c-f46b4a085ebb)
 
 5. **Índice FULLTEXT**
    - Aplicado em: `orders.description`
    - Uso: Otimiza buscas textuais
+  
+   - ![image](https://github.com/user-attachments/assets/a95b6e75-ea8e-4195-9b4b-163381dcf78a)
 
 6. **Índice COMPOSTO (B-Tree)**
    - Aplicado em: `orders(status, order_date)`
    - Uso: Otimiza consultas que filtram por status e período simultaneamente
+  
+   - ![image](https://github.com/user-attachments/assets/c1a45b51-f92d-4c55-bf94-87691661b337)
 
 7. **Índice HASH**
    - Aplicado em: Tabela MEMORY com chave primária usando HASH
    - Uso: Demonstra a eficiência para operações de igualdade exata
+  
+   - ![image](https://github.com/user-attachments/assets/824adae8-b300-45de-8a67-9c46fff382df)
 
 ## 📊 Estrutura do Projeto
 
@@ -188,29 +201,50 @@ python bda.py
 - Melhoria significativa em buscas exatas
 - Overhead na inserção devido à verificação de unicidade
 
+- ![image](https://github.com/user-attachments/assets/8d8491c2-b054-4bab-b7e9-2b2cfe849074)
+- ![image](https://github.com/user-attachments/assets/63bb88c0-846a-4341-96d9-78b7ced35ab1)
+
 ### Índice B-Tree (order_date)
 - Eficiente para ranges de datas
 - Ideal para relatórios por período
+
+- ![image](https://github.com/user-attachments/assets/475c574d-1300-4f24-9e3b-9e55d2c7590c)
+- ![image](https://github.com/user-attachments/assets/5e79d184-b37e-4596-91b4-5436bb311155)
 
 ### Índice B-Tree (status)
 - Útil para valores categóricos
 - Menor impacto devido à baixa cardinalidade (poucos valores distintos)
 
+- ![image](https://github.com/user-attachments/assets/5b2e564d-cd47-49b2-8898-9f5a8d8f7ab8)
+- ![image](https://github.com/user-attachments/assets/7cff507a-1530-4382-ab57-5237c266c777)
+
 ### Índice B-Tree (total)
 - Eficaz para ranges numéricos
 - Bom para relatórios financeiros e filtros por faixa de preço
+
+- ![image](https://github.com/user-attachments/assets/783013c0-4f79-4e60-9652-b463cafb870a)
+- ![image](https://github.com/user-attachments/assets/5519d17a-5bb9-4c35-b5b0-06a2afe90982)
 
 ### Índice FULLTEXT (description)
 - Otimiza buscas textuais
 - Maior overhead de armazenamento
 
+- ![image](https://github.com/user-attachments/assets/e3f6a33d-50ca-400a-aeda-4168ab7de25a)
+- ![image](https://github.com/user-attachments/assets/80188333-f867-4f1c-bfee-899e6ba049fa)
+
 ### Índice COMPOSTO (status, order_date)
 - Melhoria dramática para consultas com múltiplos filtros
 - Demonstra a importância da ordem das colunas no índice
 
+- ![image](https://github.com/user-attachments/assets/71f1617a-76d4-4975-90f3-502a3e605233)
+- ![image](https://github.com/user-attachments/assets/aeb74198-3e8f-44e4-986c-8ca61313007f)
+
 ### Índice HASH (id)
 - Extremamente eficiente para buscas por igualdade exata
 - Limitado a operações de igualdade (não suporta ranges)
+
+- ![image](https://github.com/user-attachments/assets/9b7d1ab3-fe72-44a4-b4c3-08954c00f3aa)
+- ![image](https://github.com/user-attachments/assets/facd898e-917e-4387-ace4-a60191a7ff20)
 
 ## 📝 Conclusões
 
