@@ -220,27 +220,3 @@ python bda.py
 4. É importante balancear o uso de índices com o overhead de manutenção
 5. Índices compostos são essenciais para consultas com múltiplos filtros
 6. Índices HASH são extremamente eficientes para buscas por chave exata
-
-## 📚 Apêndice: Tipos de Índices no MySQL
-
-### B-TREE (Padrão)
-- Tipo de índice padrão para engines InnoDB e MyISAM
-- Estrutura baseada em árvore balanceada
-- Otimiza buscas por igualdade e intervalo
-
-### Índices Compostos
-- Combina duas ou mais colunas
-- A ordem das colunas impacta a eficiência
-
-### Índices Únicos
-- Garante valores únicos nas colunas indexadas
-- Também acelera consultas por essas colunas
-
-### Índices HASH
-- Usados principalmente na engine MEMORY
-- Muito eficientes para buscas por igualdade exata
-- Não suportam ordenações ou buscas por intervalo
-
-### Índices FULLTEXT
-- Especializados para busca em texto longo
-- Permitem buscas por relevância, palavras-chave e frases
